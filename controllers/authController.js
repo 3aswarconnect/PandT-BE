@@ -1,15 +1,17 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
-
+const Employer = require('../models/Employer')
 const generateToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
 exports.signup = async (req, res) => {
   try {
+    console.log("running");
     const { name, email, phone, password, role, skills } = req.body;
-    const exists = await User.findOne({ email });
+    console.log(req.body)
+    const exists = await Employer.findOne({ email });
     if (exists) return res.status(400).json({ message: 'User already exists' });
 
-    const user = await User.create({ name, email, phone, password, role, skills: skills || [] });
+    const user = await Employer.create({ name, email, phone, password, role, skills: skills || [] });
     res.status(201).json({
       _id: user._id, name: user.name, email: user.email,
       role: user.role, token: generateToken(user._id)
