@@ -16,4 +16,5 @@ app.use('/api/payments', require('./routes/payments'));
 app.get('/', (req, res) => res.json({ message: 'Job Marketplace API Running' }));
 
 const PORT = process.env.PORT || 5000;
+
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
