@@ -2,9 +2,9 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
-  name: { type: String, required: true, trim: true },
+  name: { type: String, default:"" },
   email: { type: String, required: true, unique: true, lowercase: true },
-  phone: { type: String, required: true },
+  phone: { type: String },
   password: { type: String, required: true },
   location: {
     type: { type: String, default: 'Point' },
@@ -14,7 +14,8 @@ const userSchema = new mongoose.Schema({
   rating: { type: Number, default: 0 },
   totalRatings: { type: Number, default: 0 },
   wallet: { type: Number, default: 0 },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  role:{type:String,required :true}
 });
 
 userSchema.index({ location: '2dsphere' });
