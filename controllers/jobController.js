@@ -23,35 +23,61 @@ exports.createJob = async (req, res) => {
 
 exports.getJobs = async (req, res) => {
   try {
-    const { category, minPay, maxPay, lat, lng, radius, sort } = req.query;
-    let query = { status: 'open' };
+    const { category, minPay, maxPay, lat, lng, radius, sort, search } = req.query;
 
-    if (category) query.category = category;
-    if (minPay || maxPay) {
-      query.pay = {};
-      if (minPay) query.pay.$gte = Number(minPay);
-      if (maxPay) query.pay.$lte = Number(maxPay);
+    let query = { status: "open" };
+
+    // ✅ Category filter
+    if (category && category !== "All") {
+      query.category = category;
     }
+
+    // ✅ Pay filter
+    if (minPay || maxPay) {
+      query.amount = {};
+      if (minPay) query.amount.$gte = Number(minPay);
+      if (maxPay) query.amount.$lte = Number(maxPay);
+    }
+
+    // ✅ Search filter
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { category: { $regex: search, $options: "i" } },
+        { "location.address": { $regex: search, $options: "i" } }
+      ];
+    }
+
+    // ✅ Nearby filter (Geo)
     if (lat && lng) {
-      query['location'] = {
+      query.location = {
         $near: {
-          $geometry: { type: 'Point', coordinates: [Number(lng), Number(lat)] },
-          $maxDistance: (Number(radius) || 10) * 1000
-        }
+          $geometry: {
+            type: "Point",
+            coordinates: [Number(lng), Number(lat)],
+          },
+          $maxDistance: (Number(radius) || 10) * 1000,
+        },
       };
     }
 
-    let sortObj = { createdAt: -1 };
-    if (sort === 'pay_high') sortObj = { pay: -1 };
-    if (sort === 'pay_low') sortObj = { pay: 1 };
+    // ✅ Sorting
+    let sortObj = { createdAt: -1 }; // default: most recent
 
-    const jobs = await Job.find(query).populate('employer', 'name rating').sort(sortObj);
+    if (sort === "pay_high") sortObj = { amount: -1 };
+    if (sort === "pay_low") sortObj = { amount: 1 };
+    if (sort === "duration_short") sortObj = { "duration.value": 1 };
+
+    const jobs = await Job.find(query)
+      .populate("employer", "name rating")
+      .sort(sortObj);
+
     res.json(jobs);
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
-
 exports.getJobById = async (req, res) => {
   try {
     const job = await Job.findById(req.params.id)
