@@ -1,4 +1,6 @@
 const Job = require('../models/Job');
+const Worker= require('../models/Worker')
+const mongoose = require('mongoose');
 
 exports.createJob = async (req, res) => {
   try {
@@ -91,54 +93,132 @@ exports.getJobById = async (req, res) => {
 };
 
 exports.applyToJob = async (req, res) => {
+  console.log("apply job calling")
   try {
     const job = await Job.findById(req.params.id);
-    if (!job) return res.status(404).json({ message: 'Job not found' });
+    if (!job) 
+      return res.status(404).json({ message: 'Job not found' });
 
-    const alreadyApplied = job.applications.find(a => a.worker.toString() === req.user._id.toString());
-    if (alreadyApplied) return res.status(400).json({ message: 'Already applied' });
+    const worker = await Worker.findById(req.user._id);
+    if (!worker)
+      return res.status(404).json({ message: 'Worker not found' });
 
-    job.applications.push({ worker: req.user._id });
+    // 🔴 Check if already applied in Job
+    const alreadyApplied = job.applications.find(
+      a => a.worker.toString() === req.user._id.toString()
+    );
+
+    if (alreadyApplied)
+      return res.status(400).json({ message: 'Already applied' });
+
+    // ✅ Add to Job collection
+    job.applications.push({
+      worker: req.user._id
+    });
+
     await job.save();
+
+    // ✅ Add to Worker collection
+    worker.jobs.push({
+      job: job._id,
+      status: 'pending'
+    });
+
+    await worker.save();
+
     res.json({ message: 'Applied successfully' });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
+
 exports.handleApplication = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const { applicationId, action } = req.body; // action: 'accepted' or 'rejected'
-    const job = await Job.findById(req.params.id);
-    if (!job) return res.status(404).json({ message: 'Job not found' });
+    const { applicationId, action } = req.body; // accepted | rejected
+    const job = await Job.findById(req.params.id).session(session);
+
+    if (!job)
+      return res.status(404).json({ message: 'Job not found' });
+
     if (job.employer.toString() !== req.user._id.toString())
       return res.status(403).json({ message: 'Not authorized' });
 
-    const app = job.applications.id(applicationId);
-    if (!app) return res.status(404).json({ message: 'Application not found' });
+    const application = job.applications.id(applicationId);
 
-    app.status = action;
+    if (!application)
+      return res.status(404).json({ message: 'Application not found' });
+
+    // 🔥 If ACCEPTED
     if (action === 'accepted') {
-      job.assignedWorker = app.worker;
+
       job.status = 'in_progress';
-      // Reject all other applications
-      job.applications.forEach(a => {
-        if (a._id.toString() !== applicationId) a.status = 'rejected';
-      });
+      job.assignedWorker = application.worker;
+
+      // Update all applications
+      for (let app of job.applications) {
+        if (app._id.toString() === applicationId) {
+          app.status = 'accepted';
+
+          // ✅ Update Accepted Worker
+          await Worker.updateOne(
+            { _id: app.worker, "jobs.job": job._id },
+            { $set: { "jobs.$.status": "accepted" } },
+            { session }
+          );
+
+        } else {
+          app.status = 'rejected';
+
+          // ❌ Reject other workers
+          await Worker.updateOne(
+            { _id: app.worker, "jobs.job": job._id },
+            { $set: { "jobs.$.status": "rejected" } },
+            { session }
+          );
+        }
+      }
+
+    } else if (action === 'rejected') {
+
+      application.status = 'rejected';
+
+      await Worker.updateOne(
+        { _id: application.worker, "jobs.job": job._id },
+        { $set: { "jobs.$.status": "rejected" } },
+        { session }
+      );
     }
-    await job.save();
-    res.json({ message: `Application ${action}` });
+
+    await job.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.json({ message: `Application ${action} successfully` });
+
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     res.status(500).json({ message: error.message });
   }
 };
 
 exports.getMyJobs = async (req, res) => {
-  try {console.log("jobs calling")
+  try {
+    console.log("jobs calling");
+
     const jobs = await Job.find({ employer: req.user._id })
-      .populate('assignedWorker', 'name phone rating')
+      .populate("assignedWorker", "name phone rating")
+      .populate("applications.worker", "name phone rating") // 🔥 THIS LINE IS MISSING
       .sort({ createdAt: -1 });
+
     res.json(jobs);
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

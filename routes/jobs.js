@@ -11,8 +11,8 @@ router.get('/', protectWorker, getJobs);
 router.get('/my-jobs', protectEmployer, getMyJobs);
 router.get('/my-applications', protect, getMyApplications);
 router.get('/:id', protect, getJobById);
-router.post('/:id/apply', protect, applyToJob);
-router.put('/:id/application', protect, handleApplication);
+router.post('/:id/apply', protectWorker, applyToJob);
+router.put('/:id/application', protectEmployer, handleApplication);
 router.put('/:id/complete', protect, completeJob);
 
 module.exports = router;

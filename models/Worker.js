@@ -15,7 +15,18 @@ const userSchema = new mongoose.Schema({
   totalRatings: { type: Number, default: 0 },
   wallet: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
-  role:{type:String,required :true}
+  role:{type:String,required :true},
+    jobs: [
+    {
+      job: { type: mongoose.Schema.Types.ObjectId, ref: 'Job' },
+      status: { 
+        type: String, 
+        enum: ['pending', 'accepted', 'rejected', 'completed'], 
+        default: 'pending' 
+      },
+      appliedAt: { type: Date, default: Date.now }
+    }
+  ],
 });
 
 userSchema.index({ location: '2dsphere' });
