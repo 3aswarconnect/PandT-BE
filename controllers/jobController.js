@@ -108,7 +108,7 @@ exports.handleApplication = async (req, res) => {
 };
 
 exports.getMyJobs = async (req, res) => {
-  try {
+  try {console.log("jobs calling")
     const jobs = await Job.find({ employer: req.user._id })
       .populate('assignedWorker', 'name phone rating')
       .sort({ createdAt: -1 });
