@@ -2,11 +2,19 @@ const Job = require('../models/Job');
 
 exports.createJob = async (req, res) => {
   try {
-    const { title, description, category, pay, payType, duration, location } = req.body;
+    const { title, description, category, amount, duration, location, workersNeeded } = req.body;
+   console.log(req.body)
     const job = await Job.create({
-      employer: req.user._id, title, description, category,
-      pay, payType, duration, location
+      employer: req.user._id,
+      title,
+      description,
+      category,
+      amount,
+      duration,
+      location,
+      workersNeeded
     });
+
     res.status(201).json(job);
   } catch (error) {
     res.status(500).json({ message: error.message });

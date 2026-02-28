@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { createJob, getJobs, getJobById, applyToJob, handleApplication, getMyJobs, getMyApplications, completeJob } = require('../controllers/jobController');
 const { protect } = require('../middleware/auth');
+const { protectEmployer } = require('../middleware/protectEmployer')
 
-router.post('/', protect, createJob);
+
+router.post('/', protectEmployer, createJob);
 router.get('/', protect, getJobs);
 router.get('/my-jobs', protect, getMyJobs);
 router.get('/my-applications', protect, getMyApplications);
