@@ -1,7 +1,8 @@
 const Job = require('../models/Job');
 const Worker= require('../models/Worker')
 const mongoose = require('mongoose');
-
+const sendPush = require("../utils/sendPush");
+const Employer = require('../models/Employer')
 exports.createJob = async (req, res) => {
   try {
     const { title, description, category, amount, duration, location, workersNeeded } = req.body;
@@ -92,18 +93,21 @@ exports.getJobById = async (req, res) => {
   }
 };
 
+
 exports.applyToJob = async (req, res) => {
-  console.log("apply job calling")
+  console.log("apply job calling");
+
   try {
-    const job = await Job.findById(req.params.id);
-    if (!job) 
+    const job = await Job.findById(req.params.id)
+      .populate("employer");
+
+    if (!job)
       return res.status(404).json({ message: 'Job not found' });
 
     const worker = await Worker.findById(req.user._id);
     if (!worker)
       return res.status(404).json({ message: 'Worker not found' });
 
-    // 🔴 Check if already applied in Job
     const alreadyApplied = job.applications.find(
       a => a.worker.toString() === req.user._id.toString()
     );
@@ -111,20 +115,24 @@ exports.applyToJob = async (req, res) => {
     if (alreadyApplied)
       return res.status(400).json({ message: 'Already applied' });
 
-    // ✅ Add to Job collection
-    job.applications.push({
-      worker: req.user._id
-    });
-
+    job.applications.push({ worker: req.user._id });
     await job.save();
 
-    // ✅ Add to Worker collection
     worker.jobs.push({
       job: job._id,
       status: 'pending'
     });
-
     await worker.save();
+
+    // 🔥 SEND PUSH
+    if (job.employer && job.employer.fcmToken) {
+      await sendPush(
+        job.employer.fcmToken,
+        "New Job Application",
+        `${worker.name} applied for your job`,
+        { jobId: job._id.toString() }
+      );
+    }
 
     res.json({ message: 'Applied successfully' });
 
@@ -132,7 +140,6 @@ exports.applyToJob = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 
 exports.handleApplication = async (req, res) => {
   const session = await mongoose.startSession();
@@ -216,7 +223,19 @@ exports.getMyJobs = async (req, res) => {
       .populate("assignedWorker", "name phone rating")
       .populate("applications.worker", "name phone rating") // 🔥 THIS LINE IS MISSING
       .sort({ createdAt: -1 });
+      // 🔥 FOR TESTING: Send push to same employer
+    const employer = await Employer.findById(req.user._id);
 
+    if (employer && employer.fcmToken) {
+      await sendPush(
+        employer.fcmToken,
+        "Test Notification 🚀",
+        "This is a test push from getMyJobs route",
+        { test: "true" }
+      );
+
+      console.log("Test push sent to employer");
+    }
     res.json(jobs);
 
   } catch (error) {

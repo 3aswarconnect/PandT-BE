@@ -12,6 +12,7 @@ app.use(express.json());
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/jobs', require('./routes/jobs'));
 app.use('/api/payments', require('./routes/payments'));
+app.use('/api/', require('./routes/notifications'));
 
 app.get('/', (req, res) => res.json({ message: 'Job Marketplace API Running' }));
 

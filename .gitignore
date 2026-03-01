@@ -3,7 +3,6 @@ node_modules/
 
 # Environment variables
 .env
-
 # Logs
 logs/
 *.log
@@ -44,3 +43,5 @@ Thumbs.db
 # Mac files
 .AppleDouble
 .LSOverride
+
+serviceAccountKey.json
