@@ -2,23 +2,37 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
-  name: { type: String, deafult:""},
+  name: { type: String, default: "" },
+
   email: { type: String, required: true, unique: true, lowercase: true },
-  phone: { type: String, },
+
+  phone: { type: String },
+
   password: { type: String, required: true },
+
+  age: { type: Number },   // ✅ ADD
+
+  photo: { type: String }, // ✅ ADD (S3 URL later)
+
   location: {
     type: { type: String, default: 'Point' },
-    coordinates: { type: [Number], default: [0, 0] }
+    coordinates: { type: [Number], default: [0, 0] },
+    address: { type: String }   // ✅ ADD
   },
+
+  profileCompleted: {      // ✅ ADD
+    type: Boolean,
+    default: false
+  },
+
   skills: [String],
   rating: { type: Number, default: 0 },
   totalRatings: { type: Number, default: 0 },
   wallet: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
-  role:{type :String, required:true},
-  fcmToken: {
-  type: String
-}
+  role: { type: String, required: true },
+
+  fcmToken: { type: String }
 });
 
 userSchema.index({ location: '2dsphere' });

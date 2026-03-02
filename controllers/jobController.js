@@ -6,7 +6,13 @@ const Employer = require('../models/Employer')
 exports.createJob = async (req, res) => {
   try {
     const { title, description, category, amount, duration, location, workersNeeded } = req.body;
-   console.log(req.body)
+    const user = await Employer.findById(req.user._id);
+
+if (!user.profileCompleted) {
+  return res.status(403).json({
+    message: "Complete profile before posting job"
+  });
+}
     const job = await Job.create({
       employer: req.user._id,
       title,
@@ -138,6 +144,29 @@ exports.applyToJob = async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// DELETE JOB
+exports.deleteJob = async (req, res) => {
+  try {
+    const job = await Job.findById(req.params.id);
+
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+
+    // 🔐 Make sure only owner can delete
+    if (job.employer.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized to delete this job" });
+    }
+
+    await job.deleteOne();
+
+    res.json({ message: "Job deleted successfully" });
+
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
   }
 };
 

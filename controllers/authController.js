@@ -113,3 +113,57 @@ exports.updateProfile = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+exports.profileStatus = async (req, res) => {
+  try {
+    console.log("status checing")
+    const user = await Employer.findById(req.user._id);
+
+    res.json({
+      profileCompleted: user.profileCompleted
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.completeProfile = async (req, res) => {
+  try {
+    const { name, phone, age, address, lat, lng } = req.body;
+
+    if (!name || !phone || !age || !address) {
+      return res.status(400).json({ message: "All fields required" });
+    }
+
+    if (age < 18) {
+      return res.status(400).json({ message: "Must be 18 or above" });
+    }
+
+    const user = await Employer.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.name = name;
+    user.phone = phone;
+    user.age = age;
+    // user.photo = photo;
+
+    user.location = {
+      type: "Point",
+      coordinates: [lng, lat],
+      address: address
+    };
+
+    user.profileCompleted = true;
+
+    await user.save();
+
+    res.json({ message: "Profile completed successfully" });
+
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
