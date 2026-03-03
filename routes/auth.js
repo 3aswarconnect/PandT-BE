@@ -4,10 +4,19 @@ const { signup, login, getProfile, updateProfile,completeProfile,profileStatus,s
 const { protect } = require('../middleware/auth');
 const { protectEmployer } = require('../middleware/protectEmployer')
 const { protectWorker }= require('../middleware/protectWorker')
+const upload = require("../middleware/upload");
+
+
 router.post('/signup', signup);
 router.post('/login', login);
-router.put("/complete-profile", protectEmployer, completeProfile);
 router.get("/profile-status", protectEmployer, profileStatus);
 router.post("/send-otp",sendOtp);
 router.post("/verify-otp",verifyOtp);
+
+router.put(
+  "/employer/complete-profile",
+  protectEmployer,
+  upload.single("photo"),
+  completeProfile
+);
 module.exports = router;
