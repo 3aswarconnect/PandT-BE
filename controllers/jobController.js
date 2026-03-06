@@ -169,6 +169,50 @@ exports.deleteJob = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+// ✅ Update Job
+exports.updateJob = async (req, res) => {
+  try {
+    const jobId = req.params.id;
+    const userId = req.user.id; // from auth middleware
+
+    const {
+      title,
+      description,
+      category,
+      amount,
+      duration,
+      location,
+    } = req.body;
+
+    const job = await Job.findById(jobId);
+
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+
+
+    // ✅ Update fields
+    job.title = title ?? job.title;
+    job.description = description ?? job.description;
+    job.category = category ?? job.category;
+    job.amount = amount ?? job.amount;
+    job.duration = duration ?? job.duration;
+if (location?.address) {
+  job.location.address = location.address;
+}
+    await job.save();
+
+    res.status(200).json({
+      message: "Job updated successfully",
+      job,
+    });
+  } catch (error) {
+  console.error("Update Job Error:", error);
+  res.status(500).json({
+    message: error.message || "Server error",
+  });
+}
+};
 
 exports.handleApplication = async (req, res) => {
   const session = await mongoose.startSession();
@@ -179,38 +223,55 @@ exports.handleApplication = async (req, res) => {
     const job = await Job.findById(req.params.id).session(session);
 
     if (!job)
-      return res.status(404).json({ message: 'Job not found' });
+      return res.status(404).json({ message: "Job not found" });
 
     if (job.employer.toString() !== req.user._id.toString())
-      return res.status(403).json({ message: 'Not authorized' });
+      return res.status(403).json({ message: "Not authorized" });
 
     const application = job.applications.id(applicationId);
 
     if (!application)
-      return res.status(404).json({ message: 'Application not found' });
+      return res.status(404).json({ message: "Application not found" });
 
     // 🔥 If ACCEPTED
-    if (action === 'accepted') {
+    if (action === "accepted") {
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-      job.status = 'in_progress';
+      // ✅ FIX: proper object syntax (was: expiresAt false)
+      job.otp = {
+        code: otpCode,
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000), // expires in 30 min
+        verified: false,
+      };
+
+      job.status = "in_progress";
       job.assignedWorker = application.worker;
+
+      // ✅ FIX: Fetch worker BEFORE sending push (was missing)
+      const worker = await Worker.findById(application.worker).session(session);
+
+      if (worker?.fcmToken) {
+        await sendPush(
+          worker.fcmToken,
+          "Job Accepted! 🎉",
+          `Your OTP is ${otpCode}. Show this to the employer and carry your ID card.`,
+          { jobId: job._id.toString() }
+        );
+      }
 
       // Update all applications
       for (let app of job.applications) {
         if (app._id.toString() === applicationId) {
-          app.status = 'accepted';
+          app.status = "accepted";
 
-          // ✅ Update Accepted Worker
           await Worker.updateOne(
             { _id: app.worker, "jobs.job": job._id },
             { $set: { "jobs.$.status": "accepted" } },
             { session }
           );
-
         } else {
-          app.status = 'rejected';
+          app.status = "rejected";
 
-          // ❌ Reject other workers
           await Worker.updateOne(
             { _id: app.worker, "jobs.job": job._id },
             { $set: { "jobs.$.status": "rejected" } },
@@ -218,10 +279,8 @@ exports.handleApplication = async (req, res) => {
           );
         }
       }
-
-    } else if (action === 'rejected') {
-
-      application.status = 'rejected';
+    } else if (action === "rejected") {
+      application.status = "rejected";
 
       await Worker.updateOne(
         { _id: application.worker, "jobs.job": job._id },
@@ -231,12 +290,10 @@ exports.handleApplication = async (req, res) => {
     }
 
     await job.save({ session });
-
     await session.commitTransaction();
     session.endSession();
 
     res.json({ message: `Application ${action} successfully` });
-
   } catch (error) {
     await session.abortTransaction();
     session.endSession();

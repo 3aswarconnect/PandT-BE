@@ -15,6 +15,8 @@ const userSchema = new mongoose.Schema({
   totalRatings: { type: Number, default: 0 },
   wallet: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
+      fcmToken: { type: String },
+
   role:{type:String,required :true},
     jobs: [
     {

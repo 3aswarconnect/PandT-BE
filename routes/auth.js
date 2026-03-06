@@ -19,4 +19,5 @@ router.put(
   upload.single("photo"),
   completeProfile
 );
+
 module.exports = router;

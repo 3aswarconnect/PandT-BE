@@ -23,11 +23,18 @@ duration: {
     enum: ['hours', 'days','minutes'], 
     required: true 
   }
-},  location: {
-    address: { type: String, required: true },
-    type: { type: String, default: 'Point' },
-    coordinates: { type: [Number], default: [0, 0] }
+}, location: {
+  type: {
+    type: String,
+    enum: ['Point'],
+    default: 'Point'
   },
+  coordinates: {
+    type: [Number],
+    default: [0, 0]
+  },
+  address: String
+},
   status: { type: String, enum: ['open', 'in_progress', 'completed', 'cancelled'], default: 'open' },
   applications: [applicationSchema],
   assignedWorker: { type: mongoose.Schema.Types.ObjectId, ref: 'Worker', default: null },
@@ -36,7 +43,15 @@ duration: {
     method: { type: String, enum: ['upi', 'cash', 'wallet'], default: 'cash' },
     paidAt: Date
   },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  otp: {
+  code: String,
+  expiresAt: Date,
+  verified: { type: Boolean, default: false }
+},
+
+jobStartedAt: Date,
+jobCompletedAt: Date
 });
 
 jobSchema.index({ 'location': '2dsphere' });
