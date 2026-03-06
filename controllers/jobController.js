@@ -357,3 +357,42 @@ exports.completeJob = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// Add to jobController.js
+exports.getWorkerJobs = async (req, res) => {
+  try {
+    const workerId = req.user._id;
+
+    // 1. Get worker with their jobs array
+    const worker = await Worker.findById(workerId).select('jobs');
+
+    if (!worker || worker.jobs.length === 0) {
+      return res.status(200).json({ success: true, jobs: [] });
+    }
+
+    // 2. Extract job IDs and status map from worker's jobs array
+    const jobStatusMap = {};
+    const appliedAtMap = {};
+    const jobIds = worker.jobs.map(j => {
+      jobStatusMap[j.job.toString()] = j.status;
+      appliedAtMap[j.job.toString()] = j.appliedAt;
+      return j.job;
+    });
+
+    // 3. Fetch those jobs from Job collection
+    const jobs = await Job.find({ _id: { $in: jobIds } })
+      .populate('employer', 'name phone location')
+      .sort({ createdAt: -1 });
+
+    // 4. Attach worker's application status to each job
+    const jobsWithStatus = jobs.map(job => ({
+      ...job.toObject(),
+      myApplicationStatus: jobStatusMap[job._id.toString()] || 'pending',
+      appliedAt: appliedAtMap[job._id.toString()],
+    }));
+
+    res.status(200).json({ success: true, jobs: jobsWithStatus });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
