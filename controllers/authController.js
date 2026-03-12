@@ -147,6 +147,20 @@ exports.profileStatus = async (req, res) => {
   }
 };
 
+exports.profileStatusWorker = async (req, res) => {
+  try {
+    console.log("status checing")
+    const user = await Worker.findById(req.user._id);
+
+    res.json({
+      profileCompleted: user.profileCompleted
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 exports.completeProfile = async (req, res) => {
   try {
     const { name, phone, age, location } = req.body;
@@ -159,6 +173,61 @@ exports.completeProfile = async (req, res) => {
     }
 
     const user = await Employer.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    let photoUrl = user.photo;
+
+    if (req.file) {
+      const fileName = `profiles/${Date.now()}-${req.file.originalname}`;
+
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: process.env.S3_BUCKET_NAME,
+          Key: fileName,
+          Body: req.file.buffer,
+          ContentType: req.file.mimetype,
+        })
+      );
+
+      photoUrl = `https://${process.env.S3_BUCKET_NAME}.s3.ap-south-1.amazonaws.com/${fileName}`;
+    }
+
+    user.name = name;
+    user.phone = phone;
+    user.age = age;
+    user.photo = photoUrl;
+
+    user.location = {
+      type: "Point",
+      coordinates: [0, 0], // update later with real lat/lng
+      address: location,
+    };
+
+    user.profileCompleted = true;
+
+    await user.save();
+
+    res.json({ message: "Profile completed successfully" });
+
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+exports.completeProfileWorker = async (req, res) => {
+  try {
+    const { name, phone, age, location } = req.body;
+    if (!name || !phone || !age || !location) {
+      return res.status(400).json({ message: "All fields required" });
+    }
+
+    if (age < 18) {
+      return res.status(400).json({ message: "Must be 18 or above" });
+    }
+
+    const user = await Worker.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }

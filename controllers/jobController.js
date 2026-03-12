@@ -301,6 +301,105 @@ exports.handleApplication = async (req, res) => {
   }
 };
 
+exports.verfityotp = async (req, res) => {
+
+  try {
+    const { jobId } = req.params;
+    const { otp } = req.body;
+
+    const job = await Job.findById(jobId);
+
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+
+    if (!job.otp || job.otp.code !== otp) {
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    if (job.otp.verified) {
+      return res.status(400).json({ message: "OTP already verified" });
+    }
+
+    // mark verified
+    job.otp.verified = true;
+    job.jobStartedAt = new Date();
+
+    await job.save();
+
+    res.json({
+      message: "OTP verified. Job started.",
+      job,
+    });
+
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Server error" });
+  }
+}
+
+
+exports.completeJob = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+
+    const job = await Job.findById(jobId);
+
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+
+    if (!job.otp?.verified) {
+      return res.status(400).json({ message: "Job has not started yet" });
+    }
+
+    if (job.jobCompletedAt) {
+      return res.status(400).json({ message: "Job already completed" });
+    }
+
+    const startTime = new Date(job.jobStartedAt).getTime();
+    const now = Date.now();
+
+    if (now - startTime < 2 * 60 * 1000) {
+      return res.status(400).json({
+        message: "Job must run at least 2 minutes before completion"
+      });
+    }
+
+    // ✅ Complete Job
+    job.jobCompletedAt = new Date();
+    job.status = "completed";
+
+    await job.save();
+
+    // ✅ Update Worker
+    if (job.assignedWorker) {
+      const worker = await Worker.findById(job.assignedWorker);
+
+      if (worker) {
+        const jobEntry = worker.jobs.find(
+          (j) => j.job.toString() === jobId
+        );
+
+        if (jobEntry) {
+          jobEntry.status = "completed";
+        }
+
+
+        await worker.save();
+      }
+    }
+
+    res.json({
+      message: "Job completed successfully",
+      job
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
 exports.getMyJobs = async (req, res) => {
   try {
     console.log("jobs calling");
@@ -343,20 +442,6 @@ exports.getMyApplications = async (req, res) => {
   }
 };
 
-exports.completeJob = async (req, res) => {
-  try {
-    const job = await Job.findById(req.params.id);
-    if (!job) return res.status(404).json({ message: 'Job not found' });
-    if (job.employer.toString() !== req.user._id.toString())
-      return res.status(403).json({ message: 'Not authorized' });
-
-    job.status = 'completed';
-    await job.save();
-    res.json({ message: 'Job marked as completed' });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
 
 // Add to jobController.js
 exports.getWorkerJobs = async (req, res) => {
@@ -394,5 +479,85 @@ exports.getWorkerJobs = async (req, res) => {
     res.status(200).json({ success: true, jobs: jobsWithStatus });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.submitComment = async (req, res) => {
+
+  try {
+
+    const { jobId } = req.params;
+    const { comment } = req.body;
+
+    const job = await Job.findById(jobId);
+
+    const worker = await Worker.findById(job.assignedWorker);
+
+    const jobEntry = worker.jobs.find(
+      j => j.job.toString() === jobId
+    );
+
+    if (!jobEntry) {
+      return res.status(404).json({ message: "Job entry not found" });
+    }
+
+    jobEntry.comment = comment;
+
+    await worker.save();
+
+    res.json({
+      message: "Comment saved"
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+
+};
+exports.submitRating = async (req, res) => {
+  try {
+
+    const { jobId } = req.params;
+    const { rating } = req.body;
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ message: "Rating must be between 1 and 5" });
+    }
+
+    const job = await Job.findById(jobId);
+
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+
+    const worker = await Worker.findById(job.assignedWorker);
+
+    if (!worker) {
+      return res.status(404).json({ message: "Worker not found" });
+    }
+
+    const jobEntry = worker.jobs.find(
+      j => j.job.toString() === jobId
+    );
+
+    if (!jobEntry) {
+      return res.status(404).json({ message: "Job not found in worker profile" });
+    }
+
+    jobEntry.rating = rating;
+
+    // update worker average rating
+    const totalScore = worker.rating * worker.totalRatings + rating;
+
+    worker.totalRatings += 1;
+    worker.rating = totalScore / worker.totalRatings;
+
+    await worker.save();
+
+    res.json({ message: "Rating submitted successfully" });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
   }
 };

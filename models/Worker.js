@@ -6,10 +6,6 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true },
   phone: { type: String },
   password: { type: String, required: true },
-  location: {
-    type: { type: String, default: 'Point' },
-    coordinates: { type: [Number], default: [0, 0] }
-  },
   skills: [String],
   rating: { type: Number, default: 0 },
   totalRatings: { type: Number, default: 0 },
@@ -18,17 +14,38 @@ const userSchema = new mongoose.Schema({
       fcmToken: { type: String },
 
   role:{type:String,required :true},
-    jobs: [
-    {
-      job: { type: mongoose.Schema.Types.ObjectId, ref: 'Job' },
-      status: { 
-        type: String, 
-        enum: ['pending', 'accepted', 'rejected', 'completed'], 
-        default: 'pending' 
-      },
-      appliedAt: { type: Date, default: Date.now }
-    }
-  ],
+jobs: [
+{
+  job: { type: mongoose.Schema.Types.ObjectId, ref: 'Job' },
+
+  status: { 
+    type: String, 
+    enum: ['pending', 'accepted', 'rejected', 'completed'], 
+    default: 'pending' 
+  },
+
+  appliedAt: { type: Date, default: Date.now },
+
+  rating: { type: Number, min: 1, max: 5 },
+
+  comment: { type: String }
+}
+]
+,
+  age: { type: Number },   // ✅ ADD
+
+  photo: { type: String }, // ✅ ADD (S3 URL later)
+
+  location: {
+    type: { type: String, default: 'Point' },
+    coordinates: { type: [Number], default: [0, 0] },
+    address: { type: String }   // ✅ ADD
+  },
+
+  profileCompleted: {      // ✅ ADD
+    type: Boolean,
+    default: false
+  },
 });
 
 userSchema.index({ location: '2dsphere' });
