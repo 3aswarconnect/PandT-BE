@@ -3,7 +3,10 @@ const mongoose = require('mongoose');
 const applicationSchema = new mongoose.Schema({
   worker: { type: mongoose.Schema.Types.ObjectId, ref: 'Worker' },
   status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
-  appliedAt: { type: Date, default: Date.now }
+  appliedAt: { type: Date, default: Date.now },
+   proposedAmount: {
+    type: Number,
+  },
 });
 
 const jobSchema = new mongoose.Schema({

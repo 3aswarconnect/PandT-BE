@@ -98,8 +98,64 @@ exports.getJobById = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+exports.increaseMoney = async (req, res) => {
+ try {
+    const { amount } = req.body;
 
+    const job = await Job.findById(req.params.jobId);
 
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+
+    const application = job.applications.find(
+      (a) => a.worker.toString() === req.user.id
+    );
+
+    if (!application) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    application.proposedAmount = amount;
+
+    await job.save();
+
+    res.json({
+      message: "Offer increased",
+      proposedAmount: amount,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+exports.decreaseMoney = async (req, res) => {
+try {
+    const { applicationId, amount } = req.body;
+
+    const job = await Job.findById(req.params.jobId);
+
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+
+    const application = job.applications.id(applicationId);
+
+    if (!application) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    application.proposedAmount = amount;
+
+    await job.save();
+
+    res.json({
+      message: "Offer updated",
+      proposedAmount: amount,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
 exports.applyToJob = async (req, res) => {
   console.log("apply job calling");
 
@@ -121,12 +177,17 @@ exports.applyToJob = async (req, res) => {
     if (alreadyApplied)
       return res.status(400).json({ message: 'Already applied' });
 
-    job.applications.push({ worker: req.user._id });
+   job.applications.push({
+  worker: req.user._id,
+  status: "pending",
+  proposedAmount: job.amount
+});
     await job.save();
 
     worker.jobs.push({
       job: job._id,
-      status: 'pending'
+      status: 'pending',
+      proposedAmount: job.amount,
     });
     await worker.save();
 
@@ -246,6 +307,7 @@ exports.handleApplication = async (req, res) => {
 
       job.status = "in_progress";
       job.assignedWorker = application.worker;
+       job.amount = application.proposedAmount;
 
       // ✅ FIX: Fetch worker BEFORE sending push (was missing)
       const worker = await Worker.findById(application.worker).session(session);
