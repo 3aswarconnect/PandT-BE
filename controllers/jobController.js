@@ -320,7 +320,8 @@ exports.handleApplication = async (req, res) => {
           { jobId: job._id.toString() }
         );
       }
-
+     // 🔥 CLEAR OLD QUEUE
+  job.queue = [];
       // Update all applications
       for (let app of job.applications) {
         if (app._id.toString() === applicationId) {
@@ -332,13 +333,14 @@ exports.handleApplication = async (req, res) => {
             { session }
           );
         } else {
-          app.status = "rejected";
+          // 👇 Instead of reject → push to queue
+      job.queue.push(app.worker);
 
-          await Worker.updateOne(
-            { _id: app.worker, "jobs.job": job._id },
-            { $set: { "jobs.$.status": "rejected" } },
-            { session }
-          );
+      await Worker.updateOne(
+        { _id: app.worker, "jobs.job": job._id },
+        { $set: { "jobs.$.status": "queued" } },
+        { session }
+      );
         }
       }
     } else if (action === "rejected") {
@@ -355,7 +357,10 @@ exports.handleApplication = async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    res.json({ message: `Application ${action} successfully` });
+   res.json({ 
+  message: `Application ${action} successfully`,
+  queue: job.queue // 👈 send queue IDs
+});
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
@@ -363,6 +368,82 @@ exports.handleApplication = async (req, res) => {
   }
 };
 
+exports.cancelAssignedWorker = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const job = await Job.findById(req.params.id).session(session);
+
+    if (!job)
+      return res.status(404).json({ message: "Job not found" });
+
+    if (job.employer.toString() !== req.user._id.toString())
+      return res.status(403).json({ message: "Not authorized" });
+
+    // ❌ STEP 1: Reject current accepted worker
+    const acceptedApp = job.applications.find(
+      (app) => app.status === "accepted"
+    );
+   
+    if (acceptedApp) {
+      acceptedApp.status = "rejected";
+
+      await Worker.updateOne(
+        { _id: acceptedApp.worker, "jobs.job": job._id },
+        { $set: { "jobs.$.status": "rejected" } },
+        { session }
+      );
+    }
+
+    // 🔥 STEP 2: Notify all queue workers
+    const queueWorkerIds = job.queue || [];
+
+    const queueWorkers = await Worker.find({
+      _id: { $in: queueWorkerIds },
+    }).session(session);
+
+    for (let worker of queueWorkers) {
+      if (worker.fcmToken) {
+        await sendPush(
+          worker.fcmToken,
+          "🔥 Job Available Again!",
+          "A job you applied for is open again. Grab it fast!",
+          { jobId: job._id.toString() }
+        );
+      }
+
+      // also update worker job status back to pending
+      await Worker.updateOne(
+        { _id: worker._id, "jobs.job": job._id },
+        { $set: { "jobs.$.status": "pending" } },
+        { session }
+      );
+    }
+
+    // 🔁 STEP 3: Reset job
+    job.status = "open";
+    job.assignedWorker = null;
+    job.otp = null;
+    job.jobStartedAt = null;
+
+
+
+    await job.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.json({
+      message: "Worker cancelled, job reopened, queue notified",
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    res.status(500).json({ message: error.message });
+  }
+};
 exports.verfityotp = async (req, res) => {
 
   try {
