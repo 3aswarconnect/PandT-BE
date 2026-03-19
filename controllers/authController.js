@@ -350,3 +350,31 @@ exports.verifyOtp = async (req, res) => {
     res.status(500).json({ message: "Verification failed" });
   }
 }
+exports.getWorkerProfile = async (req, res) => {
+  console.log("running")
+  try {
+    const worker = await Worker.findById(req.user._id)
+      .populate({
+        path: "jobs.job",
+        select: "title category amount"
+      });
+
+    if (!worker)
+      return res.status(404).json({ message: "Worker not found" });
+
+    // 🔥 Calculate average rating
+    const ratedJobs = worker.jobs.filter(j => j.rating);
+    const avgRating =
+      ratedJobs.length > 0
+        ? ratedJobs.reduce((acc, j) => acc + j.rating, 0) / ratedJobs.length
+        : 0;
+
+    res.json({
+      worker,
+      avgRating: avgRating.toFixed(1),
+      totalReviews: ratedJobs.length,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
